@@ -87,7 +87,10 @@ logo = Image.open(logo_path)
 with open(logo_path, "rb") as image_file:
     encoded_logo = base64.b64encode(image_file.read()).decode()
 
-st.image(logo, width=60)
+if st.button("☰", key="sidebar_logo"):
+    st.session_state.show_sidebar = True
+
+st.image(logo, width=90)
 
 # PAGE CONFIG
 
@@ -95,7 +98,7 @@ st.set_page_config(
     page_title="AI DeFi Risk Monitor",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 st.markdown(
@@ -625,6 +628,8 @@ if market_live_df.empty:
 # PROFESSIONAL SIDEBAR
 # ---------------------------------------------------
 
+if "show_sidebar" not in st.session_state:
+    st.session_state.show_sidebar = True
 with st.sidebar:
 
     st.markdown(" AI DeFi Monitor")
