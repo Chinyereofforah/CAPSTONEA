@@ -467,8 +467,7 @@ if search_query:
             "No blockchain risk alerts triggered."
         )
 
-# HIDE DEFAULT STREAMLIT MENU
-
+# HIDE DEFAULT STREAMLIT MENU + DEFAULT MULTIPAGE SIDEBAR
 
 hide_streamlit_style = """
 <style>
@@ -485,8 +484,14 @@ header {
     visibility: hidden;
 }
 
-section[data-testid="stSidebarNav"] {
-    display: none;
+/* HIDE STREAMLIT DEFAULT PAGE NAVIGATION */
+[data-testid="stSidebarNav"] {
+    display: none !important;
+}
+
+/* REMOVE EXTRA TOP SPACE */
+section[data-testid="stSidebar"] > div:first-child {
+    padding-top: 0rem;
 }
 
 </style>
