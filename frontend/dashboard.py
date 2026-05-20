@@ -87,7 +87,7 @@ logo = Image.open(logo_path)
 with open(logo_path, "rb") as image_file:
     encoded_logo = base64.b64encode(image_file.read()).decode()
 
-st.image(logo, width=90)
+st.image(logo, width=60)
 
 # PAGE CONFIG
 
@@ -135,7 +135,7 @@ st.markdown(
     }
 
     .main {
-        padding-top: 100px;
+        padding-top: 10px;
     }
 
     </style>
@@ -519,7 +519,7 @@ div[data-testid="stSidebar"] {
 }
 
 .block-container {
-    padding-top: 2rem;
+    padding-top: 0.5rem;
 }
 
 .crypto-card {
