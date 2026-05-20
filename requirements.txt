@@ -4,5 +4,6 @@ uvicorn
 pandas
 numpy
 scikit-learn
-
+streamlit
+streamlit-option-menu
 plotly

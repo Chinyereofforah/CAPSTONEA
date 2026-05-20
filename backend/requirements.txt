@@ -7,3 +7,5 @@ requests
 joblib
 python-telegram-bot
 plotly
+streamlit
+streamlit-option-menu
