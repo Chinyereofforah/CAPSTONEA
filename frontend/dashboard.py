@@ -165,7 +165,6 @@ st.markdown(
 
 # LOAD MARKET DATA
 
-
 @st.cache_data(ttl=60)
 def load_market_data():
 
@@ -204,21 +203,15 @@ def load_market_data():
 
 # GLOBAL DATAFRAME
 
-
 market_live_df = load_market_data()
 
-
 # PAGE HEADER
-
-
-st.title("")
 
 st.markdown("""
 
 """)
 
 # SEARCH INPUT
-
 
 search_query = st.text_input(
     "Search coins, alerts, news, analytics...",
@@ -227,7 +220,6 @@ search_query = st.text_input(
 
 
 # SEARCH FUNCTION
-
 
 def search_dataframe(df, query):
 
@@ -260,7 +252,6 @@ def search_dataframe(df, query):
 
 
 # SEARCH EXECUTION
-
 
 if search_query:
 
