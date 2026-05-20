@@ -90,7 +90,22 @@ with open(logo_path, "rb") as image_file:
 if st.button("☰", key="sidebar_logo"):
     st.session_state.show_sidebar = True
 
-st.image(logo, width=90)
+col1, col2 = st.columns([0.5, 20])
+
+with col1:
+    st.markdown(
+        """
+        <style>
+        div[data-testid="collapsedControl"] {
+            display: block;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+with col2:
+    st.image(logo, width=60)
 
 # PAGE CONFIG
 
@@ -98,7 +113,7 @@ st.set_page_config(
     page_title="AI DeFi Risk Monitor",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 st.markdown(
@@ -483,18 +498,23 @@ footer {
     visibility: hidden;
 }
 
-header {
-    visibility: hidden;
+/* KEEP HEADER VISIBLE */
+header[data-testid="stHeader"] {
+    background: transparent;
 }
 
-/* HIDE STREAMLIT DEFAULT PAGE NAVIGATION */
+/* HIDE DEFAULT MULTIPAGE NAV */
 [data-testid="stSidebarNav"] {
     display: none !important;
 }
 
-/* REMOVE EXTRA TOP SPACE */
-section[data-testid="stSidebar"] > div:first-child {
-    padding-top: 0rem;
+/* CLEAN SPACING */
+.block-container {
+    padding-top: 0.5rem;
+}
+
+.main {
+    padding-top: 10px;
 }
 
 </style>
