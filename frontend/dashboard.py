@@ -1,4 +1,10 @@
 # load libraries
+import plotly.express as px
+import plotly.graph_objects as go
+from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import StandardScaler
+import numpy as np
+import time
 import streamlit as st
 from streamlit_option_menu import option_menu
 import plotly.express as px
@@ -1676,7 +1682,396 @@ elif selected == "Analytics":
             movers_fig,
             use_container_width=True
         )
+## Analyzing DEX Activities
 
+    st.title("DEX Intelligence")
+
+    # =====================================================
+    # LOAD REAL ETHEREUM DEX MARKET DATA
+    # =====================================================
+
+    @st.cache_data(ttl=120)
+    def load_real_dex_market():
+
+        search_pairs = [
+            "ETH/USDC",
+            "ETH/USDT",
+            "WBTC/ETH",
+            "LINK/ETH",
+            "UNI/ETH",
+            "PEPE/ETH",
+            "MKR/ETH",
+            "AAVE/ETH",
+            "SHIB/ETH",
+            "ARB/ETH"
+        ]
+
+        rows = []
+
+        for pair in search_pairs:
+
+            try:
+
+                url = f"https://api.dexscreener.com/latest/dex/search/?q={pair}"
+
+                r = requests.get(url, timeout=30)
+
+                if r.status_code != 200:
+                    continue
+
+                data = r.json()
+
+                if "pairs" not in data:
+                    continue
+
+                pairs = data["pairs"]
+
+                for p in pairs:
+
+                    try:
+
+                        if p.get("chainId") != "ethereum":
+                            continue
+
+                        rows.append({
+
+                            "DEX": p.get("dexId", "Unknown"),
+
+                            "Pair": p.get("baseToken", {}).get("symbol", "")
+                            + "/"
+                            + p.get("quoteToken", {}).get("symbol", ""),
+
+                            "Base Token":
+                            p.get("baseToken", {}).get("symbol", ""),
+
+                            "Quote Token":
+                            p.get("quoteToken", {}).get("symbol", ""),
+
+                            "Price USD":
+                            float(p.get("priceUsd", 0)),
+
+                            "Liquidity USD":
+                            float(p.get("liquidity", {}).get("usd", 0)),
+
+                            "FDV":
+                            float(p.get("fdv", 0)),
+
+                            "24H Volume":
+                            float(p.get("volume", {}).get("h24", 0)),
+
+                            "6H Volume":
+                            float(p.get("volume", {}).get("h6", 0)),
+
+                            "1H Volume":
+                            float(p.get("volume", {}).get("h1", 0)),
+
+                            "Buys":
+                            float(
+                                p.get("txns", {})
+                                .get("h24", {})
+                                .get("buys", 0)
+                            ),
+
+                            "Sells":
+                            float(
+                                p.get("txns", {})
+                                .get("h24", {})
+                                .get("sells", 0)
+                            ),
+
+                            "24H Change %":
+                            float(
+                                p.get("priceChange", {})
+                                .get("h24", 0)
+                            ),
+
+                            "Pair Address":
+                            p.get("pairAddress", "")
+
+                        })
+
+                    except:
+                        pass
+
+            except:
+                pass
+
+            time.sleep(0.2)
+
+        df = pd.DataFrame(rows)
+
+        if not df.empty:
+
+            df = df.drop_duplicates(
+                subset=["Pair Address"]
+            )
+
+        return df
+
+    dex_df = load_real_dex_market()
+
+    # =====================================================
+    # SAFETY CHECK
+    # =====================================================
+
+    if dex_df.empty:
+
+        st.warning("Unable to load live DEX market data.")
+
+    else:
+
+        # =================================================
+        # TOP METRICS
+        # =================================================
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "Tracked DEXs",
+            dex_df["DEX"].nunique()
+        )
+
+        col2.metric(
+            "Tracked Pairs",
+            len(dex_df)
+        )
+
+        col3.metric(
+            "24H Market Volume",
+            f"${dex_df['24H Volume'].sum():,.0f}"
+        )
+
+        col4.metric(
+            "Total Liquidity",
+            f"${dex_df['Liquidity USD'].sum():,.0f}"
+        )
+
+        st.divider()
+
+        # =================================================
+        # ANALYZE DEX SWAPS
+        # =================================================
+
+        st.subheader("🔄 Real-Time DEX Swap Analysis")
+
+        swap_chart = px.scatter(
+            dex_df,
+            x="24H Volume",
+            y="Liquidity USD",
+            size="Buys",
+            color="DEX",
+            hover_name="Pair",
+            title="DEX Swap Liquidity Analysis",
+            log_x=True
+        )
+
+        st.plotly_chart(
+            swap_chart,
+            use_container_width=True
+        )
+
+        st.dataframe(
+            dex_df.sort_values(
+                by="24H Volume",
+                ascending=False
+            ),
+            use_container_width=True,
+            height=600
+        )
+
+        # =================================================
+        # POPULAR ETHEREUM DEXS
+        # =================================================
+
+        st.subheader("🏆 Most Active Ethereum DEXs")
+
+        dex_summary = (
+            dex_df
+            .groupby("DEX")
+            .agg({
+                "24H Volume": "sum",
+                "Liquidity USD": "sum",
+                "Buys": "sum",
+                "Sells": "sum"
+            })
+            .reset_index()
+        )
+
+        dex_summary = dex_summary.sort_values(
+            by="24H Volume",
+            ascending=False
+        )
+
+        dex_volume_chart = px.bar(
+            dex_summary,
+            x="DEX",
+            y="24H Volume",
+            color="DEX",
+            title="DEX Volume Ranking"
+        )
+
+        st.plotly_chart(
+            dex_volume_chart,
+            use_container_width=True
+        )
+
+        # =================================================
+        # DEX VS DEX COMPARISON
+        # =================================================
+
+        st.subheader("⚔️ DEX vs DEX Comparison")
+
+        compare_chart = px.scatter(
+            dex_summary,
+            x="Liquidity USD",
+            y="24H Volume",
+            size="Buys",
+            color="DEX",
+            hover_name="DEX",
+            title="Liquidity vs Volume Comparison"
+        )
+
+        st.plotly_chart(
+            compare_chart,
+            use_container_width=True
+        )
+
+        # =================================================
+        # TRADE PATTERN DETECTION
+        # =================================================
+
+        st.subheader("🧠 Trade Pattern Detection")
+
+        pattern_df = dex_df.copy()
+
+        features = pattern_df[
+            [
+                "24H Volume",
+                "Liquidity USD",
+                "Buys",
+                "Sells",
+                "24H Change %"
+            ]
+        ]
+
+        scaler = StandardScaler()
+
+        scaled_features = scaler.fit_transform(features)
+
+        model = DBSCAN(
+            eps=1.5,
+            min_samples=3
+        )
+
+        clusters = model.fit_predict(
+            scaled_features
+        )
+
+        pattern_df["Cluster"] = clusters
+
+        cluster_chart = px.scatter(
+            pattern_df,
+            x="24H Volume",
+            y="Liquidity USD",
+            color=pattern_df["Cluster"].astype(str),
+            hover_name="Pair",
+            size="Buys",
+            title="DEX Trade Pattern Clustering",
+            log_x=True
+        )
+
+        st.plotly_chart(
+            cluster_chart,
+            use_container_width=True
+        )
+
+        # =================================================
+        # ANOMALY DETECTION
+        # =================================================
+
+        st.subheader("🚨 Suspicious Trading Detection")
+
+        pattern_df["BuySellRatio"] = (
+            pattern_df["Buys"] /
+            (pattern_df["Sells"] + 1)
+        )
+
+        anomalies = pattern_df[
+            (
+                pattern_df["BuySellRatio"] > 3
+            )
+            |
+            (
+                pattern_df["24H Change %"].abs() > 15
+            )
+            |
+            (
+                pattern_df["24H Volume"] > (
+                    pattern_df["24H Volume"].mean() * 5
+                )
+            )
+        ]
+
+        if anomalies.empty:
+
+            st.success(
+                "No significant anomalies detected."
+            )
+
+        else:
+
+            st.dataframe(
+                anomalies.sort_values(
+                    by="24H Volume",
+                    ascending=False
+                ),
+                use_container_width=True,
+                height=400
+            )
+
+        # =================================================
+        # DEX MARKET HEATMAP
+        # =================================================
+
+        st.subheader("🔥 Ethereum DEX Market Heatmap")
+
+        heatmap = go.Figure(
+            go.Treemap(
+                labels=dex_summary["DEX"],
+                parents=[""] * len(dex_summary),
+                values=dex_summary["24H Volume"],
+                textinfo="label+value"
+            )
+        )
+
+        heatmap.update_layout(
+            margin=dict(
+                t=30,
+                l=0,
+                r=0,
+                b=0
+            )
+        )
+
+        st.plotly_chart(
+            heatmap,
+            use_container_width=True
+        )
+
+        # =================================================
+        # RAW LIVE DATA FEED
+        # =================================================
+
+        st.subheader("📡 Real-Time Ethereum DEX Feed")
+
+        st.dataframe(
+            dex_df.sort_values(
+                by="24H Volume",
+                ascending=False
+            ),
+            use_container_width=True,
+            height=900
+        )
     # ---------------------------------------------------
     # FAVORITES TAB
     # ---------------------------------------------------
