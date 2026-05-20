@@ -8,3 +8,4 @@ streamlit
 streamlit-option-menu
 plotly
 python-dotenv
+groq
