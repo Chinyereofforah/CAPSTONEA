@@ -6,3 +6,4 @@ scikit-learn
 requests
 joblib
 python-telegram-bot
+plotly
