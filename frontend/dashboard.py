@@ -23,6 +23,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
+
+if not os.path.exists(logo_path):
+    st.warning("Logo file not found, skipping logo display.")
+    logo = None
+else:
+    logo = Image.open(logo_path)
+
 st.markdown(
     """
     <style>
@@ -105,7 +115,8 @@ with col1:
     )
 
 with col2:
-    st.image(logo, width=60)
+    if logo is not None:
+        st.image(logo, width=60)
 
 # PAGE CONFIG
 
