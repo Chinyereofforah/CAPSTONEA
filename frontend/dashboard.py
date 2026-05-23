@@ -2708,10 +2708,6 @@ elif selected == "Whale Tracking":
 # ---------------------------------------------------
 
 elif selected == "Smart Money":
-
-    st.title("")
-    st.caption("Real-time whale flow & anomaly detection using live market signals")
-
     # ---------------------------------------------------
     # SAFETY CHECK
     # ---------------------------------------------------
@@ -3486,10 +3482,6 @@ elif selected == "Alerts":
 # ---------------------------------------------------
 
 elif selected == "Settings":
-
-    st.title("")
-
-    st.caption("Security • Personalization • Threat Intelligence Controls")
 
     st.divider()
 
