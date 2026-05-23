@@ -1,4 +1,4 @@
-# load libraries
+# loading libraries for deploying to Streamlit cloud
 import sys
 import os
 
@@ -11,6 +11,8 @@ ROOT_DIR = os.path.abspath(
 
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
+
+### loading libraries
 
 import plotly.express as px
 import plotly.graph_objects as go
@@ -1462,10 +1464,6 @@ Possible causes:
 
 elif selected == "Dashboard":
 
-    st.title("")
-
-    st.caption("Ranking, Yield Analytics, Risk Scoring & Liquidity Insights")
-
     st.divider()
 
     # ===================================================
@@ -2379,12 +2377,6 @@ elif selected == "Analytics":
 # ---------------------------------------------------
 
 elif selected == "Whale Tracking":
-
-    st.title("")
-
-    st.caption(
-        "Real-time whale movement monitoring, exploit detection and institutional activity tracking."
-    )
 
     st.divider()
 
