@@ -1,4 +1,17 @@
 # load libraries
+import sys
+import os
+
+ROOT_DIR = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        ".."
+    )
+)
+
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
+
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.cluster import DBSCAN

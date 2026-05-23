@@ -23,6 +23,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
+
+if not os.path.exists(logo_path):
+    st.warning("Logo file not found, skipping logo display.")
+    logo = None
+else:
+    logo = Image.open(logo_path)
+
 st.markdown(
     """
     <style>
@@ -90,7 +100,23 @@ with open(logo_path, "rb") as image_file:
 if st.button("☰", key="sidebar_logo"):
     st.session_state.show_sidebar = True
 
-st.image(logo, width=90)
+col1, col2 = st.columns([0.5, 20])
+
+with col1:
+    st.markdown(
+        """
+        <style>
+        div[data-testid="collapsedControl"] {
+            display: block;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+with col2:
+    if logo is not None:
+        st.image(logo, width=60)
 
 # PAGE CONFIG
 
@@ -98,7 +124,7 @@ st.set_page_config(
     page_title="AI DeFi Risk Monitor",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 st.markdown(
@@ -150,7 +176,6 @@ st.markdown(
 
 # LOAD MARKET DATA
 
-
 @st.cache_data(ttl=60)
 def load_market_data():
 
@@ -189,21 +214,15 @@ def load_market_data():
 
 # GLOBAL DATAFRAME
 
-
 market_live_df = load_market_data()
 
-
 # PAGE HEADER
-
-
-st.title("")
 
 st.markdown("""
 
 """)
 
 # SEARCH INPUT
-
 
 search_query = st.text_input(
     "Search coins, alerts, news, analytics...",
@@ -212,7 +231,6 @@ search_query = st.text_input(
 
 
 # SEARCH FUNCTION
-
 
 def search_dataframe(df, query):
 
@@ -245,7 +263,6 @@ def search_dataframe(df, query):
 
 
 # SEARCH EXECUTION
-
 
 if search_query:
 
@@ -483,18 +500,23 @@ footer {
     visibility: hidden;
 }
 
-header {
-    visibility: hidden;
+/* KEEP HEADER VISIBLE */
+header[data-testid="stHeader"] {
+    background: transparent;
 }
 
-/* HIDE STREAMLIT DEFAULT PAGE NAVIGATION */
+/* HIDE DEFAULT MULTIPAGE NAV */
 [data-testid="stSidebarNav"] {
     display: none !important;
 }
 
-/* REMOVE EXTRA TOP SPACE */
-section[data-testid="stSidebar"] > div:first-child {
-    padding-top: 0rem;
+/* CLEAN SPACING */
+.block-container {
+    padding-top: 0.5rem;
+}
+
+.main {
+    padding-top: 10px;
 }
 
 </style>
@@ -686,15 +708,7 @@ with st.sidebar:
 
 if selected == "Home":
 
-    st.title("")
-
-    st.caption(
-        "Real-Time DeFi Intelligence • Threat Detection • Whale Monitoring • Security Analytics"
-    )
-
-    # =====================================================
     # LOAD REAL MARKET DATA
-    # =====================================================
 
     @st.cache_data(ttl=120)
     def load_home_market_data():
@@ -778,6 +792,7 @@ if selected == "Home":
             market_live_df["price_change_percentage_24h"] < 0
         ]
     )
+    
 
     html_code = f"""
 <style>
@@ -1949,6 +1964,23 @@ elif selected == "Analytics":
         # =================================================
         # TRADE PATTERN DETECTION
         # =================================================
+        @st.cache_data(ttl=600)
+        def cached_dbscan(features):
+
+            scaler = StandardScaler()
+
+            scaled_features = scaler.fit_transform(features)
+
+            model = DBSCAN(
+                eps=1.5,
+                min_samples=3
+            )
+
+            clusters = model.fit_predict(
+            scaled_features
+            )
+
+            return clusters
 
         st.subheader("🧠 Trade Pattern Detection")
 
@@ -1964,18 +1996,7 @@ elif selected == "Analytics":
             ]
         ]
 
-        scaler = StandardScaler()
-
-        scaled_features = scaler.fit_transform(features)
-
-        model = DBSCAN(
-            eps=1.5,
-            min_samples=3
-        )
-
-        clusters = model.fit_predict(
-            scaled_features
-        )
+        clusters = cached_dbscan(features)
 
         pattern_df["Cluster"] = clusters
 
@@ -2957,36 +2978,292 @@ elif selected == "Smart Money":
     col1.metric("Top Smart Money Asset", top_asset["name"])
     col2.metric("Highest Volume", f"${df['total_volume'].max():,.0f}")
     col3.metric("Highest Market Cap", f"${df['market_cap'].max():,.0f}")
-# ---------------------------------------------------
+
+
 # ALERTS PAGE
-# ---------------------------------------------------
 
 elif selected == "Alerts":
 
-    st.title("")
+    st.divider()
 
-    st.caption("Real-time DeFi risk monitoring across multiple risk vectors")
+    retry_strategy = Retry(
+        total=5,
+        backoff_factor=2,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"]
+    )
+
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+
+    session = requests.Session()
+
+    session.mount("https://", adapter)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
     # ---------------------------------------------------
-    # LOAD MARKET DATA (FOR CONTEXT)
+    # LOAD TVL DATA
     # ---------------------------------------------------
 
     @st.cache_data(ttl=300)
-    def load_alert_data():
+    def load_tvl_data():
 
-        url = (
-            "https://api.coingecko.com/api/v3/global"
+        try:
+
+            url = "https://api.llama.fi/protocols"
+
+            r = session.get(
+                url,
+                headers=headers,
+                timeout=30
+            )
+
+            if r.status_code != 200:
+                return pd.DataFrame()
+
+            data = r.json()
+
+            rows = []
+
+            for protocol in data:
+
+                try:
+
+                    rows.append({
+
+                        "Protocol": protocol.get("name"),
+
+                        "Category": protocol.get("category"),
+
+                        "TVL": float(protocol.get("tvl", 0)),
+
+                        "Change 1D %": float(
+                            protocol.get("change_1d", 0) or 0
+                        ),
+
+                        "Change 7D %": float(
+                            protocol.get("change_7d", 0) or 0
+                        ),
+
+                        "Chains": ", ".join(
+                            protocol.get("chains", [])
+                        )
+
+                    })
+
+                except:
+                    pass
+
+            df = pd.DataFrame(rows)
+
+            return df.sort_values(
+                by="TVL",
+                ascending=False
+            )
+
+        except Exception as e:
+
+            st.error(f"TVL API Error: {e}")
+
+            return pd.DataFrame()
+
+    # ---------------------------------------------------
+    # LOAD LIQUIDITY DATA
+    # ---------------------------------------------------
+
+    @st.cache_data(ttl=300)
+    def load_liquidity_data():
+
+        search_pairs = [
+            "ETH/USDC",
+            "WBTC/ETH",
+            "SOL/USDC",
+            "ARB/USDT",
+            "AVAX/USDT",
+            "PEPE/ETH",
+            "DOGE/USDT",
+            "LINK/ETH"
+        ]
+
+        rows = []
+
+        for pair in search_pairs:
+
+            try:
+
+                url = (
+                    f"https://api.dexscreener.com/latest/dex/search/?q={pair}"
+                )
+
+                r = session.get(
+                    url,
+                    headers=headers,
+                    timeout=30
+                )
+
+                if r.status_code != 200:
+                    continue
+
+                data = r.json()
+
+                if "pairs" not in data:
+                    continue
+
+                for p in data["pairs"]:
+
+                    try:
+
+                        liquidity = float(
+                            p.get("liquidity", {})
+                            .get("usd", 0)
+                        )
+
+                        volume = float(
+                            p.get("volume", {})
+                            .get("h24", 0)
+                        )
+
+                        concentration = 0
+
+                        if liquidity > 0:
+
+                            concentration = (
+                                volume / liquidity
+                            ) * 100
+
+                        rows.append({
+
+                            "Pair": (
+                                p.get("baseToken", {})
+                                .get("symbol", "")
+                                + "/"
+                                +
+                                p.get("quoteToken", {})
+                                .get("symbol", "")
+                            ),
+
+                            "DEX": p.get("dexId"),
+
+                            "Chain": p.get("chainId"),
+
+                            "Price USD": float(
+                                p.get("priceUsd", 0)
+                            ),
+
+                            "Liquidity USD": liquidity,
+
+                            "24H Volume": volume,
+
+                            "Price Change %": float(
+                                p.get("priceChange", {})
+                                .get("h24", 0)
+                            ),
+
+                            "Liquidity Concentration %": concentration
+
+                        })
+
+                    except:
+                        pass
+
+            except:
+                pass
+
+        df = pd.DataFrame(rows)
+
+        return df.sort_values(
+            by="24H Volume",
+            ascending=False
         )
 
-        r = requests.get(url, timeout=10)
+    # ---------------------------------------------------
+    # LOAD STABLECOIN DATA
+    # ---------------------------------------------------
 
-        if r.status_code == 200:
-            return r.json()
-        return {}
+    @st.cache_data(ttl=300)
+    def load_stablecoin_data():
 
-    data = load_alert_data()
+        try:
 
-    st.divider()
+            url = (
+                "https://stablecoins.llama.fi/stablecoins?includePrices=true"
+            )
+
+            r = session.get(
+                url,
+                headers=headers,
+                timeout=30
+            )
+
+            if r.status_code != 200:
+                return pd.DataFrame()
+
+            data = r.json()
+
+            stablecoins = data.get("peggedAssets", [])
+
+            rows = []
+
+            for asset in stablecoins:
+
+                try:
+
+                    market_cap = float(
+                        asset.get("circulating", {})
+                        .get("peggedUSD", 0)
+                    )
+
+                    rows.append({
+
+                        "Token": asset.get("symbol"),
+
+                        "Market Cap": market_cap,
+
+                        "Price": float(
+                            asset.get("price", 0) or 0
+                        ),
+
+                        "Chains": ", ".join(
+                            asset.get("chains", [])
+                        ),
+
+                        "Estimated Mint Pressure": (
+                            market_cap * 0.015
+                        ),
+
+                        "Estimated Burn Pressure": (
+                            market_cap * 0.009
+                        )
+
+                    })
+
+                except:
+                    pass
+
+            df = pd.DataFrame(rows)
+
+            return df.sort_values(
+                by="Market Cap",
+                ascending=False
+            )
+
+        except Exception as e:
+
+            st.error(f"Stablecoin API Error: {e}")
+
+            return pd.DataFrame()
+
+    # ---------------------------------------------------
+    # LOAD DATASETS
+    # ---------------------------------------------------
+
+    tvl_df = load_tvl_data()
+
+    liquidity_df = load_liquidity_data()
+
+    stablecoin_df = load_stablecoin_data()
 
     # ===================================================
     # ALERT TABS
@@ -3001,38 +3278,67 @@ elif selected == "Alerts":
     ])
 
     # ---------------------------------------------------
-    # 1. SMART CONTRACT VULNERABILITIES
+    # 1. SMART CONTRACT RISK
     # ---------------------------------------------------
 
     with tab1:
 
         st.subheader("Smart Contract Vulnerabilities")
 
-        col1, col2, col3 = st.columns(3)
+        risk_df = liquidity_df.copy()
 
-        col1.metric("High Risk Protocols", random.randint(12, 45))
-        col2.metric("Exploit Attempts (24h)", random.randint(30, 120))
-        col3.metric("Suspicious Contracts", random.randint(8, 25))
+        if not risk_df.empty:
 
-        st.divider()
+            risk_df["Risk Score"] = (
+                abs(risk_df["Price Change %"]) * 2
+                +
+                risk_df["Liquidity Concentration %"]
+            )
 
-        risk_df = pd.DataFrame({
-            "Protocol": ["Uniswap V3", "Aave", "Curve", "Balancer", "SushiSwap"],
-            "Risk Score": [random.randint(20, 95) for _ in range(5)],
-            "Status": ["Safe", "Moderate", "High", "Critical", "Moderate"]
-        })
+            col1, col2, col3 = st.columns(3)
 
-        st.dataframe(risk_df, use_container_width=True)
+            col1.metric(
+                "Tracked Pools",
+                len(risk_df)
+            )
 
-        fig = px.bar(
-            risk_df,
-            x="Protocol",
-            y="Risk Score",
-            color="Risk Score",
-            title="Smart Contract Risk Levels"
-        )
+            col2.metric(
+                "High Risk Pools",
+                len(
+                    risk_df[
+                        risk_df["Risk Score"] > 120
+                    ]
+                )
+            )
 
-        st.plotly_chart(fig, use_container_width=True)
+            col3.metric(
+                "24H DEX Volume",
+                f"${risk_df['24H Volume'].sum():,.0f}"
+            )
+
+            st.divider()
+
+            st.dataframe(
+                risk_df,
+                use_container_width=True,
+                height=800
+            )
+
+            fig = px.scatter(
+                risk_df,
+                x="Liquidity USD",
+                y="24H Volume",
+                size="Risk Score",
+                color="DEX",
+                hover_name="Pair",
+                title="Smart Contract Risk Surface",
+                log_x=True
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
 
     # ---------------------------------------------------
     # 2. TVL MONITOR
@@ -3040,25 +3346,28 @@ elif selected == "Alerts":
 
     with tab2:
 
-        st.subheader("Total Value Locked (TVL) Monitoring")
-
-        tvl_df = pd.DataFrame({
-            "Protocol": ["Ethereum", "Arbitrum", "Solana", "Avalanche", "Polygon"],
-            "TVL (B$)": [58, 9.2, 5.1, 3.8, 4.5],
-            "Change 24h %": [1.2, -2.1, 3.4, -1.5, 0.8]
-        })
-
-        st.dataframe(tvl_df, use_container_width=True)
-
-        fig = px.bar(
-            tvl_df,
-            x="Protocol",
-            y="TVL (B$)",
-            color="TVL (B$)",
-            title="TVL Distribution Across Chains"
+        st.subheader(
+            "Total Value Locked (TVL) Monitoring"
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(
+            tvl_df,
+            use_container_width=True,
+            height=900
+        )
+
+        fig = px.treemap(
+            tvl_df.head(300),
+            path=["Category", "Protocol"],
+            values="TVL",
+            color="Change 7D %",
+            title="TVL Distribution Across Protocols"
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 
     # ---------------------------------------------------
     # 3. LIQUIDITY CONCENTRATION
@@ -3066,24 +3375,31 @@ elif selected == "Alerts":
 
     with tab3:
 
-        st.subheader("Liquidity Concentration Risk")
-
-        liquidity_df = pd.DataFrame({
-            "Pool": ["ETH/USDC", "WBTC/ETH", "ARB/USDT", "SOL/USDC", "AVAX/USDT"],
-            "Concentration %": [random.randint(40, 95) for _ in range(5)],
-            "Risk Level": ["High", "Medium", "High", "Low", "Medium"]
-        })
-
-        st.dataframe(liquidity_df, use_container_width=True)
-
-        fig = px.pie(
-            liquidity_df,
-            names="Pool",
-            values="Concentration %",
-            title="Liquidity Concentration Breakdown"
+        st.subheader(
+            "Liquidity Concentration Risk"
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(
+            liquidity_df,
+            use_container_width=True,
+            height=900
+        )
+
+        fig = px.scatter(
+            liquidity_df,
+            x="Liquidity USD",
+            y="Liquidity Concentration %",
+            size="24H Volume",
+            color="Chain",
+            hover_name="Pair",
+            title="Liquidity Concentration Breakdown",
+            log_x=True
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 
     # ---------------------------------------------------
     # 4. MINT / BURN ANOMALIES
@@ -3091,25 +3407,31 @@ elif selected == "Alerts":
 
     with tab4:
 
-        st.subheader("Mint / Burn Anomaly Detection")
+        st.subheader(
+            "Mint / Burn Anomaly Detection"
+        )
 
-        anomaly_df = pd.DataFrame({
-            "Token": ["USDT", "USDC", "DAI", "ETH", "SHIB"],
-            "Mint Events": [random.randint(10, 100), random.randint(5, 80), random.randint(3, 60), random.randint(1, 40), random.randint(20, 200)],
-            "Burn Events": [random.randint(5, 90), random.randint(2, 70), random.randint(1, 50), random.randint(1, 30), random.randint(10, 150)]
-        })
-
-        st.dataframe(anomaly_df, use_container_width=True)
+        st.dataframe(
+            stablecoin_df,
+            use_container_width=True,
+            height=900
+        )
 
         fig = px.bar(
-            anomaly_df,
+            stablecoin_df.head(40),
             x="Token",
-            y=["Mint Events", "Burn Events"],
+            y=[
+                "Estimated Mint Pressure",
+                "Estimated Burn Pressure"
+            ],
             barmode="group",
             title="Mint vs Burn Activity"
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 
     # ---------------------------------------------------
     # 5. CROSS CHAIN IMBALANCE
@@ -3117,27 +3439,43 @@ elif selected == "Alerts":
 
     with tab5:
 
-        st.subheader("Cross-Chain Imbalance Detection")
+        st.subheader(
+            "Cross-Chain Imbalance Detection"
+        )
 
-        imbalance_df = pd.DataFrame({
-            "Chain": ["Ethereum", "Arbitrum", "Solana", "BNB Chain", "Polygon"],
-            "Inflows (M$)": [random.randint(100, 900) for _ in range(5)],
-            "Outflows (M$)": [random.randint(100, 900) for _ in range(5)]
-        })
+        cross_chain_df = (
+            liquidity_df.groupby("Chain")
+            .agg({
+                "24H Volume": "sum",
+                "Liquidity USD": "sum"
+            })
+            .reset_index()
+        )
 
-        imbalance_df["Net Flow"] = imbalance_df["Inflows (M$)"] - imbalance_df["Outflows (M$)"]
+        cross_chain_df["Net Flow Pressure"] = (
+            cross_chain_df["24H Volume"]
+            /
+            (cross_chain_df["Liquidity USD"] + 1)
+        ) * 100
 
-        st.dataframe(imbalance_df, use_container_width=True)
+        st.dataframe(
+            cross_chain_df,
+            use_container_width=True,
+            height=700
+        )
 
         fig = px.bar(
-            imbalance_df,
+            cross_chain_df,
             x="Chain",
-            y="Net Flow",
-            color="Net Flow",
+            y="Net Flow Pressure",
+            color="Net Flow Pressure",
             title="Cross-Chain Net Flow Imbalance"
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 # ---------------------------------------------------
 # SETTINGS PAGE
 # ---------------------------------------------------
