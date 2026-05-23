@@ -792,6 +792,7 @@ if selected == "Home":
             market_live_df["price_change_percentage_24h"] < 0
         ]
     )
+    
 
     html_code = f"""
 <style>
@@ -1963,6 +1964,23 @@ elif selected == "Analytics":
         # =================================================
         # TRADE PATTERN DETECTION
         # =================================================
+        @st.cache_data(ttl=600)
+        def cached_dbscan(features):
+
+            scaler = StandardScaler()
+
+            scaled_features = scaler.fit_transform(features)
+
+            model = DBSCAN(
+                eps=1.5,
+                min_samples=3
+            )
+
+            clusters = model.fit_predict(
+            scaled_features
+            )
+
+            return clusters
 
         st.subheader("🧠 Trade Pattern Detection")
 
@@ -1978,18 +1996,7 @@ elif selected == "Analytics":
             ]
         ]
 
-        scaler = StandardScaler()
-
-        scaled_features = scaler.fit_transform(features)
-
-        model = DBSCAN(
-            eps=1.5,
-            min_samples=3
-        )
-
-        clusters = model.fit_predict(
-            scaled_features
-        )
+        clusters = cached_dbscan(features)
 
         pattern_df["Cluster"] = clusters
 
